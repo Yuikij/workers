@@ -5,7 +5,7 @@ export default {
         const url = new URL(request.url);
 
         // ==========================================
-        // 第一部分：安全门卫 (鉴权逻辑)
+        // 第一部分:安全门卫 (鉴权逻辑)
         // ==========================================
         let isAuthorized = false;
         let shouldSetCookie = false;
@@ -225,7 +225,22 @@ async function serveOriginalContent(request, env) {
 
         const avatarUrl = toProxy(tweet.author.avatar_url);
         const textContent = tweet.text ? tweet.text.replace(/\n/g, "<br>") : "";
+        const textContentPlain = tweet.text || ""; // 纯文本版本用于 meta 标签
         const dateStr = new Date(tweet.created_timestamp * 1000).toLocaleString('zh-CN');
+
+        // 为微信分享准备预览图片
+        let ogImage = "";
+        if (tweet.media && tweet.media.photos && tweet.media.photos.length > 0) {
+            // 优先使用照片
+            ogImage = toProxy(tweet.media.photos[0].url);
+        } else if (tweet.media && tweet.media.videos && tweet.media.videos.length > 0) {
+            // 如果没有照片，使用视频缩略图
+            ogImage = toProxy(tweet.media.videos[0].thumbnail_url);
+        }
+        // 如果都没有，使用作者头像
+        if (!ogImage) {
+            ogImage = avatarUrl;
+        }
 
         const html = `
         <!DOCTYPE html>
@@ -233,7 +248,21 @@ async function serveOriginalContent(request, env) {
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>${tweet.author.name} 的推文</title>
+          <title>${textContentPlain}</title>
+          
+          <!-- Open Graph / 微信分享预览 -->
+          <meta property="og:type" content="article">
+          <meta property="og:title" content="${textContentPlain}">
+          <meta property="og:description" content="发布于 ${dateStr}">
+          <meta property="og:image" content="${ogImage}">
+          <meta property="og:url" content="${request.url}">
+          
+          <!-- Twitter Card (也可能被某些平台使用) -->
+          <meta name="twitter:card" content="summary_large_image">
+          <meta name="twitter:title" content="${textContentPlain}">
+          <meta name="twitter:description" content="发布于 ${dateStr}">
+          <meta name="twitter:image" content="${ogImage}">
+          
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
             .card { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
@@ -265,7 +294,7 @@ async function serveOriginalContent(request, env) {
             </div>
             <div class="footer">
               发布于: ${dateStr} <br><br>
-              <a href="${tweet.url}" target="_blank">🔗 跳转到原推特 (需翻墙)</a>
+              <a href="${tweet.url}" target="_blank">🔗 跳转到原推特x</a>
             </div>
           </div>
         </body>
